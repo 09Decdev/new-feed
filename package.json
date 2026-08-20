@@ -1,0 +1,22 @@
+{
+  "name": "news-poster",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Auto-create news posts in content-service via HTTP API",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "setup": "dotenv -- ts-node poster.ts --mode=setup",
+    "communities": "dotenv -- ts-node poster.ts --mode=communities",
+    "run": "dotenv -- ts-node poster.ts --mode=run",
+    "start": "dotenv -- ts-node poster.ts --mode=run",
+    "web": "dotenv -- ts-node poster.ts --mode=web",
+    "test": "dotenv -- ts-node poster.ts --mode=test",
+    "rss": "dotenv -- ts-node poster.ts --mode=rss"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "dotenv-cli": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

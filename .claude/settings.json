@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Creator_hup/**)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} time=%{time_total}s\\\\n\" -H \"x-user-id: bench-user-001\" \"http://127.0.0.1:30041/content-service/post/for-you?limit=20\")"
+    ]
+  }
+}

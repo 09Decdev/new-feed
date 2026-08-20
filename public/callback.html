@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>news-poster — OAuth callback</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 44rem; padding: 0 1rem; color: #222; }
+  </style>
+</head>
+<body>
+  <h1>Đăng nhập Google…</h1>
+  <p id="msg">Đang xử lý callback OAuth trong GUI. (Wave 4 sẽ thực hiện exchange code→tokens ngay tại đây; trong Wave 2 đây là trang stub.)</p>
+  <script>
+    // Wave 4 TODO: trao đổi ?code=… lấy tokens và đăng nhập gateway, rồi redirect về /.
+    document.getElementById('msg').textContent = 'Callback OAuth nhận được (stub — Wave 4 sẽ xử lý exchange).';
+  </script>
+</body>
+</html>

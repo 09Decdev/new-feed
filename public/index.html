@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>news-poster GUI</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 44rem; padding: 0 1rem; color: #222; }
+    code { background: #f2f2f2; padding: 0 0.3rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>news-poster GUI</h1>
+  <p id="state">Đang tải trạng thái…</p>
+  <script>
+    // Placeholder (Wave 1 backend scaffold). Wave 3 sẽ thay public/ bằng UI đầy đủ.
+    fetch('/api/status')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) {
+          document.getElementById('state').textContent =
+            'Bot state: ' + j.data.state + ' — posted today: ' + j.data.postedToday;
+        } else if (j && j.code === 'UNAUTHORIZED') {
+          document.getElementById('state').textContent =
+            'Cần GUI_TOKEN để xem (GET /api/status yêu cầu Authorization: Bearer <token>).';
+        } else {
+          document.getElementById('state').textContent = 'Lỗi máy chủ: ' + (j && j.message ? j.message : r.statusText);
+        }
+      })
+      .catch(function () {
+        document.getElementById('state').textContent = 'Không kết nối được tới GUI server.';
+      });
+  </script>
+</body>
+</html>
