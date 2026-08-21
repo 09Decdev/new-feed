@@ -11,6 +11,10 @@
     "start": "dotenv -- ts-node poster.ts --mode=run",
     "web": "dotenv -- ts-node poster.ts --mode=web",
     "test": "dotenv -- ts-node poster.ts --mode=test",
+    "test:unit": "node --test --require ts-node/register \"test/unit/**/*.test.ts\"",
+    "test:contract": "node --test --require ts-node/register \"test/contract/**/*.test.ts\"",
+    "test:wave5": "npm run test:unit && npm run test:contract",
+    "test:mutation": "ts-node test/mutation/run-mutants.ts",
     "rss": "dotenv -- ts-node poster.ts --mode=rss"
   },
   "devDependencies": {

@@ -4,32 +4,250 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>news-poster GUI</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 44rem; padding: 0 1rem; color: #222; }
-    code { background: #f2f2f2; padding: 0 0.3rem; border-radius: 4px; }
-  </style>
+  <link rel="stylesheet" href="style.css" />
+  <script src="app.js" defer></script>
 </head>
 <body>
-  <h1>news-poster GUI</h1>
-  <p id="state">Đang tải trạng thái…</p>
-  <script>
-    // Placeholder (Wave 1 backend scaffold). Wave 3 sẽ thay public/ bằng UI đầy đủ.
-    fetch('/api/status')
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok) {
-          document.getElementById('state').textContent =
-            'Bot state: ' + j.data.state + ' — posted today: ' + j.data.postedToday;
-        } else if (j && j.code === 'UNAUTHORIZED') {
-          document.getElementById('state').textContent =
-            'Cần GUI_TOKEN để xem (GET /api/status yêu cầu Authorization: Bearer <token>).';
-        } else {
-          document.getElementById('state').textContent = 'Lỗi máy chủ: ' + (j && j.message ? j.message : r.statusText);
-        }
-      })
-      .catch(function () {
-        document.getElementById('state').textContent = 'Không kết nối được tới GUI server.';
-      });
-  </script>
+  <noscript><p class="empty">Cần bật JavaScript để dùng giao diện news-poster.</p></noscript>
+
+  <!-- Token gate trong-trang (không navigation) — UI-SPEC §3 -->
+  <section id="token-screen" class="token-screen" hidden>
+    <form id="token-form" class="token-card card" novalidate>
+      <h1 class="brand-lg">news-poster</h1>
+      <p class="token-sub">Nhập mã truy cập để điều khiển bot.</p>
+      <label for="token-input">Nhập mã truy cập</label>
+      <input id="token-input" type="password" required autocomplete="current-password" aria-describedby="token-err token-cnt" />
+      <p id="token-err" class="msg msg--error" role="alert" hidden></p>
+      <p id="token-cnt" class="msg msg--warning" role="alert" hidden></p>
+      <button id="token-btn" type="submit" class="btn btn--primary btn--block">Vào</button>
+      <p class="token-hint">Nhập mã từ biến GUI_TOKEN trong file .env.<br />Nếu không đặt mã, mở http://&lt;máy&gt;/ trực tiếp.</p>
+    </form>
+  </section>
+
+  <!-- App shell -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <button id="brand" type="button" class="brand">news-poster</button>
+      <span id="hdr-badge" class="badge badge--neutral" data-state="STOPPED">…</span>
+      <span id="hdr-cycle" class="hdr-meta"></span>
+      <span class="topbar-spacer"></span>
+      <span id="conn" class="conn conn--ok">⌂ Trực tuyến</span>
+      <span class="hdr-note" title="Chu kỳ làm mới dữ liệu">∞2s</span>
+    </header>
+
+    <div id="banner" class="banner banner--error" role="alert" hidden></div>
+
+    <nav id="tabs" class="tablist" role="tablist" aria-label="Khu vực chính">
+      <button id="tab-dashboard" type="button" class="tab is-active" role="tab" aria-selected="true" aria-controls="panel-dashboard" data-panel="dashboard">Dashboard</button>
+      <button id="tab-logs" type="button" class="tab" role="tab" aria-selected="false" aria-controls="panel-logs" data-panel="logs">Nhật ký</button>
+      <button id="tab-history" type="button" class="tab" role="tab" aria-selected="false" aria-controls="panel-history" data-panel="history">Lịch sử</button>
+      <button id="tab-config" type="button" class="tab" role="tab" aria-selected="false" aria-controls="panel-config" data-panel="config">Cấu hình</button>
+    </nav>
+
+    <main class="main">
+      <!-- Dashboard -->
+      <section id="panel-dashboard" class="tab-panel" role="tabpanel" aria-labelledby="tab-dashboard">
+        <div class="card status-card">
+          <div class="status-main">
+            <span id="dash-badge" class="badge badge--neutral" data-state="STOPPED">…</span>
+            <span id="dash-status-sub" class="status-sub"></span>
+          </div>
+          <div class="status-actions">
+            <button id="btn-start" type="button" class="btn btn--primary">▶ Bắt đầu</button>
+            <button id="btn-stop" type="button" class="btn btn--danger">⏹ Dừng</button>
+          </div>
+          <p id="dash-lock" class="msg msg--warning" role="alert" hidden></p>
+          <p id="dash-state-err" class="msg msg--error" role="alert" hidden></p>
+        </div>
+
+        <div class="cards-grid">
+          <div class="card">
+            <h2 class="card-title">Cấu hình đang hiệu lực</h2>
+            <dl id="dash-config" class="kv"></dl>
+            <p class="note">Sửa ở tab Cấu hình — áp dụng từ chu kỳ kế tiếp.</p>
+          </div>
+          <div class="card">
+            <h2 class="card-title">Kết quả bài cuối</h2>
+            <div id="dash-lastpost"></div>
+          </div>
+          <div class="card">
+            <h2 class="card-title">Trạng thái Google</h2>
+            <div id="dash-google"></div>
+          </div>
+          <div class="card">
+            <h2 class="card-title">Thống kê</h2>
+            <dl id="dash-stats" class="kv"></dl>
+          </div>
+        </div>
+      </section>
+
+      <!-- Nhật ký -->
+      <section id="panel-logs" class="tab-panel" role="tabpanel" aria-labelledby="tab-logs" hidden>
+        <div class="log-bar">
+          <label class="inline-label" for="log-filter">Lọc:</label>
+          <select id="log-filter" aria-label="Lọc nhật ký">
+            <option value="all" selected>Mọi</option>
+            <option value="error">Lỗi</option>
+            <option value="skip">Bỏ qua</option>
+          </select>
+          <span class="log-bar-spacer"></span>
+          <button id="log-clear" type="button" class="btn btn--bordered btn--sm">⊘ Xóa nhật ký</button>
+          <button id="log-follow" type="button" class="chip is-on" aria-pressed="true">📌 Theo cuối</button>
+          <button id="log-jump" type="button" class="log-jump" hidden></button>
+        </div>
+        <div id="log-panel" class="log-panel" role="log" aria-live="off" tabindex="0"></div>
+        <p id="log-empty" class="empty" hidden>Chưa có hoạt động nào — bắt đầu bot để xem log.</p>
+      </section>
+
+      <!-- Lịch sử -->
+      <section id="panel-history" class="tab-panel" role="tabpanel" aria-labelledby="tab-history" hidden>
+        <div class="hist-bar">
+          <button id="hist-refresh" type="button" class="btn btn--bordered">🔄 Làm mới</button>
+          <button id="hist-testpost" type="button" class="btn btn--primary">Đăng thử 1 bài</button>
+          <span class="hist-bar-spacer"></span>
+          <label class="inline-label" for="hist-status-filter">Lọc:</label>
+          <select id="hist-status-filter" aria-label="Lọc trạng thái lịch sử">
+            <option value="all" selected>Mọi</option>
+            <option value="posted">Đăng</option>
+            <option value="skipped">Bỏ qua</option>
+            <option value="failed">Thất bại</option>
+          </select>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl" id="hist-table">
+            <thead>
+              <tr>
+                <th scope="col">Trạng thái</th>
+                <th scope="col">Tiêu đề / Nguồn</th>
+                <th scope="col">Thời gian</th>
+                <th scope="col">Post ID</th>
+                <th scope="col">Lý do</th>
+              </tr>
+            </thead>
+            <tbody id="hist-tbody"></tbody>
+          </table>
+        </div>
+        <p id="hist-empty" class="empty" hidden>Chưa có bài nào được ghi nhận.</p>
+        <p id="hist-err" class="msg msg--error" role="alert" hidden></p>
+      </section>
+
+      <!-- Cấu hình -->
+      <section id="panel-config" class="tab-panel" role="tabpanel" aria-labelledby="tab-config" hidden>
+        <div class="banner banner--info">Các thay đổi được áp dụng từ CHU KỲ KẾ TIẾP — không cần khởi động lại bot.</div>
+
+        <form id="config-form" class="cfg-grid" novalidate>
+          <fieldset class="card cfg-card">
+            <legend class="card-title">Nguồn RSS</legend>
+            <label for="cfg-rss-url">RSS_FEED_URL *</label>
+            <input id="cfg-rss-url" type="url" required spellcheck="false" />
+            <div class="field-row">
+              <div class="field-grow">
+                <label for="cfg-limit">RSS_LIMIT_PER_CYCLE</label>
+                <input id="cfg-limit" type="number" min="1" step="1" />
+              </div>
+              <span class="field-suffix">bài/chu kỳ</span>
+            </div>
+            <div class="field-row">
+              <button id="cfg-feed-check" type="button" class="btn btn--bordered">🧪 Kiểm tra feed</button>
+            </div>
+            <div id="cfg-feed-result"></div>
+          </fieldset>
+
+          <fieldset class="card cfg-card">
+            <legend class="card-title">Chu kỳ</legend>
+            <label for="cfg-interval">POST_INTERVAL_MS</label>
+            <input id="cfg-interval" type="number" min="1000" step="1000" />
+            <p id="cfg-interval-hint" class="note"></p>
+          </fieldset>
+
+          <fieldset class="card cfg-card">
+            <legend class="card-title">Nơi đăng</legend>
+            <label for="cfg-community">COMMUNITY_ID *</label>
+            <input id="cfg-community" type="text" required spellcheck="false" />
+            <p class="note">Danh sách cộng đồng ở bên dưới — bấm vào ID để điền.</p>
+            <div id="cfg-community-pick"></div>
+          </fieldset>
+
+          <fieldset class="card cfg-card">
+            <legend class="card-title">Định dạng</legend>
+            <label for="cfg-layout">LAYOUT_TYPE</label>
+            <select id="cfg-layout">
+              <option value="CLASSIC">CLASSIC</option>
+              <option value="COLUMNS">COLUMNS</option>
+              <option value="FRAME">FRAME</option>
+            </select>
+          </fieldset>
+
+          <fieldset class="card cfg-card">
+            <legend class="card-title">Bot</legend>
+            <label class="check"><input id="cfg-dryrun" type="checkbox" /> Đăng thử (không đăng thật)</label>
+          </fieldset>
+
+          <fieldset class="card cfg-card">
+            <legend class="card-title">AI viết lại</legend>
+            <label class="check"><input id="cfg-rewrite" type="checkbox" /> Bật viết lại bằng AI</label>
+            <label for="cfg-llm-url">LLM_BASE_URL</label>
+            <input id="cfg-llm-url" type="url" spellcheck="false" />
+            <label for="cfg-llm-model">LLM_MODEL</label>
+            <input id="cfg-llm-model" type="text" spellcheck="false" />
+            <div id="cfg-secret-LLM_API_KEY"></div>
+          </fieldset>
+
+          <fieldset class="card cfg-card">
+            <legend class="card-title">Google OAuth</legend>
+            <label for="cfg-gid">GOOGLE_CLIENT_ID_WEB (read-only)</label>
+            <input id="cfg-gid" type="text" readonly disabled spellcheck="false" />
+            <div id="cfg-secret-GOOGLE_CLIENT_SECRET_WEB"></div>
+          </fieldset>
+        </form>
+
+        <div class="cfg-save-bar">
+          <button id="cfg-save" type="button" class="btn btn--primary">💾 Lưu cấu hình</button>
+          <span id="cfg-save-msg" class="msg msg--flat" role="alert"></span>
+        </div>
+
+        <div class="card community-table">
+          <h2 class="card-title">Cộng đồng</h2>
+          <div id="cfg-communities"></div>
+          <button id="cfg-communities-refresh" type="button" class="btn btn--bordered btn--sm">Thử lại</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal đăng thử 1 bài -->
+  <div id="test-modal" class="modal" hidden>
+    <div class="modal-overlay" data-close-modal></div>
+    <div class="modal-card card" role="dialog" aria-modal="true" aria-labelledby="test-title">
+      <h2 id="test-title" class="card-title">Đăng thử 1 bài</h2>
+      <fieldset class="fieldset-row">
+        <legend>Nguồn</legend>
+        <label class="check"><input type="radio" name="test-src" value="config" checked /> RSS feed đang cấu hình</label>
+        <label class="check"><input type="radio" name="test-src" value="url" /> URL bất kỳ</label>
+        <div id="test-url-row" class="field-row" hidden>
+          <input id="test-url" type="url" class="field-grow" placeholder="https://…" spellcheck="false" />
+        </div>
+      </fieldset>
+      <div class="field-row">
+        <div class="field-grow">
+          <label for="test-count">Số bài</label>
+          <input id="test-count" type="number" min="1" step="1" value="1" />
+        </div>
+      </div>
+      <label class="check"><input id="test-dryrun" type="checkbox" checked /> Chạy thử (dry-run — không đăng thật)</label>
+      <div class="field-row">
+        <button id="test-preview" type="button" class="btn btn--primary">Xem trước</button>
+      </div>
+      <p id="test-note" class="msg msg--info" role="status" hidden></p>
+      <p id="test-err" class="msg msg--error" role="alert" hidden></p>
+      <div id="test-preview-box" class="preview-box" hidden></div>
+      <div class="modal-actions">
+        <button id="test-close" type="button" class="btn btn--bordered">Đóng</button>
+        <button id="test-post" type="button" class="btn btn--primary" disabled>✓ Đăng bài này</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-root" class="toast-root" role="status" aria-live="polite"></div>
 </body>
 </html>

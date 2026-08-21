@@ -26,7 +26,7 @@
  * EADDRINUSE → friendly error, not a raw stack trace.
  */
 
-import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+import { createServer, IncomingMessage, ServerResponse, Server } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -76,7 +76,9 @@ const MIME: Record<string, string> = {
 // Module state
 // ---------------------------------------------------------------------------
 
-const envFile = '.env'; // config-store anchors lockFile to the .env dir already
+let envFile = '.env'; // config-store anchors lockFile to the .env dir already
+/** Running server handle — contract tests clean up via `closeGuiServer()`. */
+let runningServer: Server | undefined;
 let expectedTokenHash: Buffer | null = null; // sha256 of GUI_TOKEN (null ⇒ token off)
 let guiHostStartup = '127.0.0.1';
 let guiHostIsLoopback = true; // re-computed at startup
@@ -1053,9 +1055,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 /**
  * Start the embedded GUI server. Returns the base URL after binding succeeds.
  * Refuses to start (throws → caller exits ≠0) when GUI_HOST=0.0.0.0 without GUI_TOKEN.
+ * `opts.envFile` overrides the config file (tests use a per-suite temp .env).
  */
-export async function startGuiServer(): Promise<string> {
+export async function startGuiServer(opts?: { envFile?: string }): Promise<string> {
   installConsoleCapture();
+  if (opts?.envFile) envFile = opts.envFile;
   const cfg: Config = loadConfig(envFile);
   setLogSecrets(computeSecrets());
 
@@ -1094,6 +1098,7 @@ export async function startGuiServer(): Promise<string> {
       fail(res, 500, 'INTERNAL', 'Lỗi nội bộ máy chủ.', { humanMessage: 'Lỗi nội bộ máy chủ GUI.' });
     });
   });
+  runningServer = server;
 
   await new Promise<void>((resolve, reject) => {
     const onError = (e: NodeJS.ErrnoException) => {
@@ -1117,4 +1122,15 @@ export async function startGuiServer(): Promise<string> {
   const url = `http://${host === '0.0.0.0' ? '127.0.0.1' : fmtHost(host)}:${port}`;
   console.log(`[news-poster-gui] GUI server listening: ${url}`);
   return url;
+}
+
+/** Close the running GUI server (contract tests). Resolves after the listener closes. */
+export function closeGuiServer(): Promise<void> {
+  const srv = runningServer;
+  runningServer = undefined;
+  if (!srv) return Promise.resolve();
+  return new Promise((resolve) => {
+    srv.close(() => resolve());
+    srv.closeAllConnections?.();
+  });
 }

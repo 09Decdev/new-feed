@@ -3,7 +3,8 @@
 > Bản feature-assurance theo template `~/.claude/ASSURANCE.md`. Trạng thái NHIỆU KỲ đóng vòng:
 > **Wave 1** (core CLI: bot.controller / config-store / dedup / safe-fetch / sanitize / session / rss / poster / *.client) — **ĐÃ XONG, Reality Checker chấp nhận (có điều kiện)**.
 > **Wave 2** (embedded GUI: `server.ts`, `log.ts`, web-mode `--mode=web`, `/api/*`) — **ĐÃ XONG, Reality Checker CHẤP-NHẬN (bằng chứng 14+ kịch bản live PASS)**.
-> Ngày cập nhật: 2026-08-20 · Tác giả: Backend Architect (giai đoạn Wave 1/2).
+> **Wave 5** (tests node:test: unit+integration G1, mutation G2, contract G3, SAST G5, authz G10) — **ĐÃ XONG, tất cả hard-gate PASS**.
+> Ngày cập nhật: 2026-08-21 · Wave 5 bởi Backend Architect (tests + mutation mini-runner, zero dependency mới).
 
 ## Vùng phạm vi (files Wave 1 + Wave 2 GUI)
 
@@ -17,16 +18,16 @@
 
 | # | Bất biến | Tiêu chí | Bằng chứng |
 |---|---|---|---|
-| G1 | Tests | unit + integration (node:test) xanh, 0 skip | ⏳ **Wave 5** — plan tạo tests; Wave 1/2 hiện xác thực qua smoke live (dưới đây). |
-| G2 | Mutation | mutation score ≥ ngưỡng; 0 live mutant critical | ⏳ **Wave 5** (cùng bộ test G1). |
-| G3 | Contract | contract test (consumer-driven) PASS mọi biên | ⏳ **Wave 5**. Contract định nghĩa §8 `DESIGN-news-poster-gui.md`; T19 sẽ assert. |
-| G4 | Type/Lint/Build | xanh, 0 warning mới | ◐ **PASS (2 vòng)** — `npx tsc --noEmit` exit 0 sau cả 2 vòng phản biện (round 1 fix B1/M2-M11/P1-P2; round 2 fix R2-1..7). Lint/build: node:http tay, không có step riêng. |
-| G5 | SAST + secret-scan | 0 finding high/critical; 0 secret lộ | ◐ — code pass: token KHÔNG log/response/history; sanitize mọi envelope (`server.ts` `fail()`, `sanitize.ts`); không `Access-Control-*`; body 1MB. **Secret-scan hoàn tất Wave 5** (không secret trong `docs/`, `.env` đã .gitignore). |
+| G1 | Tests | unit + integration (node:test) xanh, 0 skip | ✅ **PASS** — `npm run test:unit` → 149 tests, 0 fail/0 skip/0 todo (`test/unit/**/*.test.ts`, node:test + ts-node/register). |
+| G2 | Mutation | mutation score ≥ ngưỡng; 0 live mutant critical | ✅ **PASS** — `npm run test:mutation` (`test/mutation/run-mutants.ts`, mini-runner tay không stryker): 22/22 = 100% killed, ngưỡng 60%, **0 critical survivor**. Mục tiêu critical: `sanitize`, `isPrivateIp`, `validatePublicUrlStatic`, `validateLlmBaseUrlStatic`, `hasPostPermission`; non-critical: `isProfanityRejection`, `describeError`. |
+| G3 | Contract | contract test (consumer-driven) PASS mọi biên | ✅ **PASS** — `npm run test:contract` → 44 tests, 0 fail/0 skip/0 todo (`test/contract/server-contract.test.ts` 30+ kịch bản route matrix + security headers + cross-site/host 403 + config write + rss SSRF gate + post/start/stop edges + PII scan). |
+| G4 | Type/Lint/Build | xanh, 0 warning mới | ✅ **PASS** — `npx tsc --noEmit` exit 0 (tsconfig không include/exclude → check ALL .ts incl `test/`); Wave 5 thêm `test/mutation/`, `test/contract/`, `test/helpers/` vẫn sạch. Lint/build: node:http tay, không có step riêng. |
+| G5 | SAST + secret-scan | 0 finding high/critical; 0 secret lộ | ✅ **PASS** — `test/contract/secret-scan.test.ts` 3 lượt: (A) không pattern secret cloud (AWS/Google/GitHub/OpenAI/Slack) trong repo; (B) không literal mật-danh entropy cao trong source `.ts/.cjs/.js`; (C) `.env.example` để trống mọi key nhạy + `.gitignore` liệt kê `.env/.session.json/posted.json`. Code: token KHÔNG log/response/history; sanitize mọi envelope; body 1MB. |
 | G6 | Code Reviewer | PASS; 0 blocker, 0 major | ✅ **2 vòng critics** — 0 blocker/major còn sống: vòng 1 (Code Reviewer/AppSec/Perf) 10/13 FIXED + 3 finding mới → vòng 2 all FIXED; vòng Verify-2 (3 critics đọc code + live) 10/13 FIXED và **R2-1..7 đều đã đóng** trong lượt producer này. |
 | G7 | Reality Checker | PASS | ✅ **Wave 1 (CÓ điều kiện)** + **Wave 2 CHẤP-NHẬN** — 14+ kịch bản live PASS; không secret commit; không phá CLI `npm test` (`--mode=test --dry-run` exit 0). |
 | G8 | Migration | schema change có approval + rollback | N/A — không schema, không DB (file-based `.env/.session.json/posted.json`, PVC local). |
 | G9* | Tiền | idempotency + replay + reconciliation | N/A — feature không đụng payment. |
-| G10* | Auth/PII | threat-model + authz test (chỉ chủ nhân) | ◐ — Threat-model có; **B1/M2/C11 đã verified** (non-loopback-bind không token → exit≠0; host-header + origin full-host; fail-auth rate-limit). **Authz chính thức (Wave 5)**: test token route / PII audit. |
+| G10* | Auth/PII | threat-model + authz test (chỉ chủ nhân) | ✅ **PASS** — Threat-model có; B1/M2/C11 đã verified (non-loopback-bind không token → exit≠0; host-header + origin full-host; fail-auth rate-limit). **Authz chính thức (Wave 5)**: `test/contract/authz-secret.test.ts` 7 test (tiến trình riêng — lock 30s 'loopback' không phá sibling): no-token→401; verify đúng→200; MISSING_TOKEN→400 (không bump); 3 lần sai→429 + `lockedUntil`; đúng-token-khi-locked→429 (lock check TRƯỚC token); GET status đúng-token-khi-locked→429. PII: mọi contract assertion `assertNoSecrets` — không literal secret (`test-tok123`/`w5-test-secret-value`/`llm-test-key-value`) rò qua response. |
 
 ## SOFT-GATE
 
@@ -63,4 +64,4 @@ Hai bài này là **artifacts có chủ đích khi smoke-test**, không phải r
 
 ## Trạng thái tổng
 
-✅ Wave 1 DONE · ✅ Wave 2 DONE (Reality Checker chấp nhận) · ⏳ Wave 3 (frontend GUI) · ⏳ Wave 4 (OAuth/setup) · ⏳ Wave 5 (tests node:test, contract G1-G3, SAST hoàn tất, authz G10).
+✅ Wave 1 DONE · ✅ Wave 2 DONE (Reality Checker chấp nhận) · ⏳ Wave 3 (frontend GUI) · ⏳ Wave 4 (OAuth/setup — chờ khách cấp GOOGLE_CLIENT_ID_WEB/SECRET) · ✅ Wave 5 DONE (tests node:test: G1 149, G2 22/22=100%, G3 44, G5 SAST, G10 authz — tất cả 0 skip/todo, `tsc --noEmit` exit 0).

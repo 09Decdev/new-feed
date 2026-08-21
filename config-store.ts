@@ -251,6 +251,7 @@ export function toPublic(cfg: Config): PublicConfig {
     REWRITE_WITH_AI: cfg.rewriteWithAi,
     LLM_BASE_URL: cfg.llmBaseUrl,
     LLM_MODEL: cfg.llmModel,
+    GOOGLE_CLIENT_ID_WEB: cfg.googleClientId,
     GOOGLE_CLIENT_SECRET_WEB: { set: !!cfg.googleClientSecret },
     LLM_API_KEY: { set: !!cfg.llmApiKey },
     GUI_HOST: cfg.guiHost,
